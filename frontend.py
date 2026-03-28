@@ -84,7 +84,7 @@ with tab1:
     # ===== PREDICTION =====
     if analyze:
         try:
-            response = requests.post(API_URL, json=input_data, timeout=60)
+            response = requests.post(API_URL, json=input_data, timeout=90)
 
             if response.status_code == 200:
                 result = response.json()
