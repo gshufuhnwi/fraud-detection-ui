@@ -12,6 +12,7 @@ st.set_page_config(page_title="FraudShield", layout="wide")
 if "input_data" not in st.session_state:
     st.session_state["input_data"] = {f"V{i}": 0.0 for i in range(1, 29)}
     st.session_state["input_data"]["Amount"] = 0.0
+    st.session_state["input_data"]["Time"] = 0.0
 
 input_data = st.session_state["input_data"]
 
@@ -23,7 +24,9 @@ col1, col2 = st.columns([3, 1])
 with col1:
     st.subheader("Transaction Simulator")
 
-    input_data["Amount"] = st.number_input("Transaction Amount ($)", value=120.0)
+    # ✅ REQUIRED FIELDS
+    input_data["Time"] = st.number_input("Transaction Time", value=float(input_data.get("Time", 0.0)))
+    input_data["Amount"] = st.number_input("Transaction Amount ($)", value=float(input_data.get("Amount", 120.0)))
 
     merchant = st.text_input("Merchant", "Amazon")
     location = st.text_input("Location", "New York")
@@ -33,17 +36,19 @@ with col1:
 
     with c1:
         if st.button("🔥 Simulate Fraud"):
-            input_data = {f"V{i}": 0.0 for i in range(1, 29)}
-            input_data["V14"] = -6.5
-            input_data["Amount"] = 300
-            st.session_state["input_data"] = input_data
+            fraud_data = {f"V{i}": 0.0 for i in range(1, 29)}
+            fraud_data["V14"] = -6.5
+            fraud_data["Amount"] = 300.0
+            fraud_data["Time"] = 100000.0  # ✅ IMPORTANT
+            st.session_state["input_data"] = fraud_data
             st.success("Fraud scenario loaded")
 
     with c2:
         if st.button("✅ Simulate Legit"):
-            input_data = {f"V{i}": 0.0 for i in range(1, 29)}
-            input_data["Amount"] = 50
-            st.session_state["input_data"] = input_data
+            legit_data = {f"V{i}": 0.0 for i in range(1, 29)}
+            legit_data["Amount"] = 50.0
+            legit_data["Time"] = 50000.0  # ✅ IMPORTANT
+            st.session_state["input_data"] = legit_data
             st.success("Legit scenario loaded")
 
     st.markdown("---")
@@ -64,9 +69,10 @@ with col2:
 # ================= ANALYSIS =================
 if analyze:
 
-    # ✅ FIXED PAYLOAD
+    # ✅ FIXED PAYLOAD (INCLUDING TIME)
     payload = {f"V{i}": float(input_data.get(f"V{i}", 0.0)) for i in range(1, 29)}
     payload["Amount"] = float(input_data.get("Amount", 0.0))
+    payload["Time"] = float(input_data.get("Time", 0.0))  # 🔥 FIX
 
     st.write("📦 Payload:", payload)
 
