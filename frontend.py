@@ -127,7 +127,7 @@ if analyze:
                 df = pd.DataFrame(shap_data)
 
                 fig = go.Figure(go.Bar(
-                    x=df["shap"],
+                    x=df["shap_value"],
                     y=df["feature"],
                     orientation='h'
                 ))
