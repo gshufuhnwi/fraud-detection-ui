@@ -14,12 +14,17 @@ if "input_data" not in st.session_state:
     st.session_state["input_data"]["Amount"] = 120.0
     st.session_state["input_data"]["Time"] = 0.0
 
-# Initialize UI keys if not present
+# Initialize UI state BEFORE widgets render
 if "amount_input" not in st.session_state:
-    st.session_state["amount_input"] = st.session_state["input_data"]["Amount"]
+    st.session_state["amount_input"] = 120.0
 
 if "time_input" not in st.session_state:
-    st.session_state["time_input"] = st.session_state["input_data"]["Time"]
+    st.session_state["time_input"] = 0.0
+
+for i in range(1, 29):
+    key = f"v{i}_input"
+    if key not in st.session_state:
+        st.session_state[key] = 0.0
 
 input_data = st.session_state["input_data"]
 
@@ -34,41 +39,27 @@ col1, col2 = st.columns([3, 1])
 with col1:
     st.subheader("Transaction Simulator")
 
-    # ===== FIXED INPUTS =====
-    amount = st.number_input(
-        "Transaction Amount ($)",
-        value=float(st.session_state["amount_input"]),
-        key="amount_input"
-    )
+    # Widgets (safe)
+    amount = st.number_input("Transaction Amount ($)", key="amount_input")
+    time = st.number_input("Transaction Time", key="time_input")
 
-    time = st.number_input(
-        "Transaction Time",
-        value=float(st.session_state["time_input"]),
-        key="time_input"
-    )
-
-    # Sync UI → session_state
+    # Sync UI → backend input
     input_data["Amount"] = amount
     input_data["Time"] = time
 
-    # ===== ADVANCED FEATURES =====
+    # ===== ADVANCED =====
     if mode == "Advanced":
         with st.expander("⚙️ Advanced Feature Input (V1–V28)"):
             cols = st.columns(4)
             for i in range(1, 29):
-                key = f"v{i}_input"
-
-                if key not in st.session_state:
-                    st.session_state[key] = input_data.get(f"V{i}", 0.0)
-
                 with cols[(i - 1) % 4]:
-                    val = st.number_input(f"V{i}", key=key)
-
+                    val = st.number_input(f"V{i}", key=f"v{i}_input")
                 input_data[f"V{i}"] = val
 
-    # ===== BUTTONS =====
+    # ================= BUTTONS =================
     c1, c2 = st.columns(2)
 
+    # 🔥 FIXED: Uses rerun
     with c1:
         if st.button("🔥 Simulate Fraud"):
             st.session_state["amount_input"] = 300.0
@@ -78,7 +69,7 @@ with col1:
                 st.session_state[f"v{i}_input"] = 0.0
             st.session_state["v14_input"] = -6.5
 
-            st.success("Fraud scenario loaded")
+            st.rerun()   # ✅ CRITICAL FIX
 
     with c2:
         if st.button("✅ Simulate Legit"):
@@ -88,11 +79,11 @@ with col1:
             for i in range(1, 29):
                 st.session_state[f"v{i}_input"] = 0.0
 
-            st.success("Legit scenario loaded")
+            st.rerun()   # ✅ CRITICAL FIX
 
     analyze = st.button("🚀 Analyze Transaction")
 
-# ================= CARD UI =================
+# ================= CARD =================
 with col2:
     st.subheader("💳 Card Preview")
     st.markdown("""
