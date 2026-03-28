@@ -11,8 +11,15 @@ st.set_page_config(page_title="FraudShield", layout="wide")
 # ================= SESSION STATE =================
 if "input_data" not in st.session_state:
     st.session_state["input_data"] = {f"V{i}": 0.0 for i in range(1, 29)}
-    st.session_state["input_data"]["Amount"] = 0.0
+    st.session_state["input_data"]["Amount"] = 120.0
     st.session_state["input_data"]["Time"] = 0.0
+
+# Initialize UI keys if not present
+if "amount_input" not in st.session_state:
+    st.session_state["amount_input"] = st.session_state["input_data"]["Amount"]
+
+if "time_input" not in st.session_state:
+    st.session_state["time_input"] = st.session_state["input_data"]["Time"]
 
 input_data = st.session_state["input_data"]
 
@@ -27,37 +34,60 @@ col1, col2 = st.columns([3, 1])
 with col1:
     st.subheader("Transaction Simulator")
 
-    input_data["Amount"] = st.number_input("Transaction Amount ($)", value=float(input_data.get("Amount", 120.0)))
-    input_data["Time"] = st.number_input("Transaction Time", value=float(input_data.get("Time", 0.0)))
+    # ===== FIXED INPUTS =====
+    amount = st.number_input(
+        "Transaction Amount ($)",
+        value=float(st.session_state["amount_input"]),
+        key="amount_input"
+    )
 
+    time = st.number_input(
+        "Transaction Time",
+        value=float(st.session_state["time_input"]),
+        key="time_input"
+    )
+
+    # Sync UI → session_state
+    input_data["Amount"] = amount
+    input_data["Time"] = time
+
+    # ===== ADVANCED FEATURES =====
     if mode == "Advanced":
         with st.expander("⚙️ Advanced Feature Input (V1–V28)"):
             cols = st.columns(4)
             for i in range(1, 29):
-                with cols[(i - 1) % 4]:
-                    input_data[f"V{i}"] = st.number_input(
-                        f"V{i}",
-                        value=float(input_data.get(f"V{i}", 0.0))
-                    )
+                key = f"v{i}_input"
 
-    # ===== Buttons =====
+                if key not in st.session_state:
+                    st.session_state[key] = input_data.get(f"V{i}", 0.0)
+
+                with cols[(i - 1) % 4]:
+                    val = st.number_input(f"V{i}", key=key)
+
+                input_data[f"V{i}"] = val
+
+    # ===== BUTTONS =====
     c1, c2 = st.columns(2)
 
     with c1:
         if st.button("🔥 Simulate Fraud"):
-            fraud_data = {f"V{i}": 0.0 for i in range(1, 29)}
-            fraud_data["V14"] = -6.5
-            fraud_data["Amount"] = 300.0
-            fraud_data["Time"] = 100000.0
-            st.session_state["input_data"] = fraud_data
+            st.session_state["amount_input"] = 300.0
+            st.session_state["time_input"] = 100000.0
+
+            for i in range(1, 29):
+                st.session_state[f"v{i}_input"] = 0.0
+            st.session_state["v14_input"] = -6.5
+
             st.success("Fraud scenario loaded")
 
     with c2:
         if st.button("✅ Simulate Legit"):
-            legit_data = {f"V{i}": 0.0 for i in range(1, 29)}
-            legit_data["Amount"] = 50.0
-            legit_data["Time"] = 50000.0
-            st.session_state["input_data"] = legit_data
+            st.session_state["amount_input"] = 50.0
+            st.session_state["time_input"] = 50000.0
+
+            for i in range(1, 29):
+                st.session_state[f"v{i}_input"] = 0.0
+
             st.success("Legit scenario loaded")
 
     analyze = st.button("🚀 Analyze Transaction")
@@ -74,12 +104,12 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-# ================= SINGLE PREDICTION =================
+# ================= PREDICTION =================
 if analyze:
 
     payload = {f"V{i}": float(input_data.get(f"V{i}", 0.0)) for i in range(1, 29)}
-    payload["Amount"] = float(input_data.get("Amount", 0.0))
-    payload["Time"] = float(input_data.get("Time", 0.0))
+    payload["Amount"] = float(input_data["Amount"])
+    payload["Time"] = float(input_data["Time"])
 
     try:
         response = requests.post(API_URL, json=payload, timeout=30)
@@ -100,7 +130,7 @@ if analyze:
                 st.metric("Prediction", label.upper())
                 st.metric("Risk Level", risk.upper())
 
-            # ===== Gauge =====
+            # ===== GAUGE =====
             with colB:
                 fig = go.Figure(go.Indicator(
                     mode="gauge+number",
@@ -126,7 +156,7 @@ if analyze:
                 df = pd.DataFrame(shap_data)
 
                 fig = go.Figure(go.Bar(
-                    x=df["shap_value"],   # ✅ FIXED
+                    x=df["shap_value"],
                     y=df["feature"],
                     orientation='h'
                 ))
@@ -136,12 +166,12 @@ if analyze:
                 st.info("No SHAP data available")
 
         else:
-            st.error("❌ API Error — check payload or backend logs")
+            st.error("❌ API Error — check backend logs")
 
     except Exception as e:
         st.error(f"🚨 Connection Error: {e}")
 
-# ================= CSV BATCH SCORING =================
+# ================= CSV BATCH =================
 st.markdown("---")
 st.markdown("## 📂 Batch Fraud Detection (CSV Upload)")
 
@@ -153,7 +183,6 @@ if uploaded_file:
     st.write("Preview:")
     st.dataframe(df.head())
 
-    # ===== VALIDATION =====
     required_cols = ["Time"] + [f"V{i}" for i in range(1, 29)] + ["Amount"]
     missing = [col for col in required_cols if col not in df.columns]
 
