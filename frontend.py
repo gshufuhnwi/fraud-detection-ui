@@ -3,158 +3,133 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 
+# ================= CONFIG =================
 API_URL = "https://fraud-detection-api-mtyt.onrender.com/predict"
 
 st.set_page_config(page_title="FraudShield", layout="wide")
 
-# ------------------ STYLE ------------------
-st.markdown("""
-<style>
-body {
-    background-color: #0B0F19;
-}
-.card {
-    background: linear-gradient(135deg, #1F2937, #111827);
-    padding: 20px;
-    border-radius: 16px;
-    color: white;
-}
-.title {
-    font-size: 32px;
-    font-weight: bold;
-}
-.subtitle {
-    color: #9CA3AF;
-}
-</style>
-""", unsafe_allow_html=True)
+# ================= SESSION STATE =================
+if "input_data" not in st.session_state:
+    st.session_state["input_data"] = {f"V{i}": 0.0 for i in range(1, 29)}
+    st.session_state["input_data"]["Amount"] = 0.0
 
-# ------------------ HEADER ------------------
-st.markdown('<div class="title">💳 FraudShield</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">AI-powered fraud detection dashboard</div>', unsafe_allow_html=True)
+input_data = st.session_state["input_data"]
 
-st.divider()
+# ================= UI =================
+st.title("💳 FraudShield - AI Fraud Detection")
 
-# ------------------ CREDIT CARD UI ------------------
-st.subheader("💳 Transaction Simulator")
-
-col1, col2 = st.columns([2, 1])
+col1, col2 = st.columns([3, 1])
 
 with col1:
-    amount = st.number_input("Transaction Amount ($)", value=120.0)
+    st.subheader("Transaction Simulator")
 
-    colA, colB = st.columns(2)
-    with colA:
-        merchant = st.text_input("Merchant", "Amazon")
-    with colB:
-        location = st.text_input("Location", "New York")
+    input_data["Amount"] = st.number_input("Transaction Amount ($)", value=120.0)
+
+    merchant = st.text_input("Merchant", "Amazon")
+    location = st.text_input("Location", "New York")
+
+    # ===== Buttons =====
+    c1, c2 = st.columns(2)
+
+    with c1:
+        if st.button("🔥 Simulate Fraud"):
+            input_data = {f"V{i}": 0.0 for i in range(1, 29)}
+            input_data["V14"] = -6.5
+            input_data["Amount"] = 300
+            st.session_state["input_data"] = input_data
+            st.success("Fraud scenario loaded")
+
+    with c2:
+        if st.button("✅ Simulate Legit"):
+            input_data = {f"V{i}": 0.0 for i in range(1, 29)}
+            input_data["Amount"] = 50
+            st.session_state["input_data"] = input_data
+            st.success("Legit scenario loaded")
+
+    st.markdown("---")
+
+    analyze = st.button("🚀 Analyze Transaction")
 
 with col2:
+    st.subheader("💳 Card Preview")
     st.markdown("""
-    <div class="card">
-        <h4>💳 Card Preview</h4>
-        <p>**** **** **** 1234</p>
+    <div style='background: linear-gradient(135deg, #1F2937, #111827);
+                padding:20px; border-radius:16px; color:white'>
+        <h4>**** **** **** 1234</h4>
         <p>Card Holder</p>
         <p>VALID THRU 12/28</p>
     </div>
     """, unsafe_allow_html=True)
 
-# ------------------ DEFAULT FEATURES ------------------
-input_data = {f"V{i}": 0.0 for i in range(1, 29)}
-input_data["Amount"] = amount
+# ================= ANALYSIS =================
+if analyze:
 
-# ------------------ DEMO BUTTONS ------------------
-col1, col2 = st.columns(2)
+    # ✅ FIXED PAYLOAD
+    payload = {f"V{i}": float(input_data.get(f"V{i}", 0.0)) for i in range(1, 29)}
+    payload["Amount"] = float(input_data.get("Amount", 0.0))
 
-with col1:
-    if st.button("🔥 Simulate Fraud"):
-        input_data.update({
-            "V14": -6.5,
-            "V10": -6.2,
-            "V12": -8.2,
-            "Amount": 300
-        })
+    st.write("📦 Payload:", payload)
 
-with col2:
-    if st.button("✅ Simulate Legit"):
-        input_data.update({
-            "Amount": 50
-        })
+    try:
+        response = requests.post(API_URL, json=payload, timeout=30)
 
-# ------------------ ADVANCED FEATURES ------------------
-with st.expander("⚙️ Advanced Features (Optional)"):
-    cols = st.columns(4)
-    for i in range(1, 29):
-        with cols[i % 4]:
-            input_data[f"V{i}"] = st.number_input(f"V{i}", value=input_data[f"V{i}"], key=f"V{i}")
-
-# ------------------ GAUGE FUNCTION ------------------
-def create_gauge(prob):
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=prob * 100,
-        title={'text': "Fraud Risk (%)"},
-        gauge={
-            'axis': {'range': [0, 100]},
-            'bar': {'color': "red"},
-            'steps': [
-                {'range': [0, 50], 'color': "green"},
-                {'range': [50, 80], 'color': "yellow"},
-                {'range': [80, 100], 'color': "red"},
-            ],
-        }
-    ))
-    return fig
-
-# ------------------ PREDICT ------------------
-if st.button("🚀 Analyze Transaction"):
-    with st.spinner("Analyzing..."):
-
-        response = requests.post(API_URL, json=input_data)
+        st.write("🔢 Status Code:", response.status_code)
+        st.write("📩 Raw Response:", response.text)
 
         if response.status_code == 200:
             result = response.json()
 
-            prob = result["fraud_probability"]
-            label = result["predicted_label"]
-            risk = result["risk_level"]
+            fraud_prob = result.get("fraud_probability", 0)
+            label = result.get("predicted_label", "unknown")
+            risk = result.get("risk_level", "unknown")
 
-            st.divider()
+            # ================= RESULT DISPLAY =================
+            st.markdown("## 🔍 Prediction Result")
 
-            # ------------------ SUMMARY ------------------
-            col1, col2 = st.columns([1, 2])
+            colA, colB = st.columns(2)
 
-            with col1:
-                st.plotly_chart(create_gauge(prob), use_container_width=True)
+            with colA:
+                st.metric("Fraud Probability", f"{fraud_prob:.2%}")
+                st.metric("Prediction", label.upper())
+                st.metric("Risk Level", risk.upper())
 
-            with col2:
-                st.markdown("### 💳 Transaction Summary")
-                st.write(f"**Amount:** ${input_data['Amount']}")
-                st.write(f"**Prediction:** {label.upper()}")
-                st.write(f"**Probability:** {prob:.4f}")
+            # ================= GAUGE =================
+            with colB:
+                fig = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=fraud_prob * 100,
+                    title={'text': "Fraud Risk"},
+                    gauge={
+                        'axis': {'range': [0, 100]},
+                        'bar': {'color': "red"},
+                        'steps': [
+                            {'range': [0, 40], 'color': "green"},
+                            {'range': [40, 70], 'color': "yellow"},
+                            {'range': [70, 100], 'color': "red"},
+                        ]
+                    }
+                ))
 
-                if risk == "high":
-                    st.error("🚨 HIGH RISK")
-                elif risk == "medium":
-                    st.warning("⚠️ MEDIUM RISK")
-                else:
-                    st.success("✅ LOW RISK")
+                st.plotly_chart(fig, use_container_width=True)
 
-            # ------------------ SHAP ------------------
-            st.subheader("📊 Key Risk Drivers")
+            # ================= SHAP =================
+            shap_data = result.get("shap_top_features", [])
 
-            shap_df = pd.DataFrame(result["shap_top_features"])
-            shap_df["abs_val"] = shap_df["shap_value"].abs()
-            shap_df = shap_df.sort_values("abs_val")
+            if shap_data:
+                st.markdown("## 📊 Top SHAP Features")
 
-            st.bar_chart(
-                shap_df.set_index("feature")["shap_value"]
-            )
+                df = pd.DataFrame(shap_data)
 
-            st.dataframe(
-                shap_df[["feature", "value", "shap_value"]],
-                use_container_width=True
-            )
+                fig = go.Figure(go.Bar(
+                    x=df["shap"],
+                    y=df["feature"],
+                    orientation='h'
+                ))
+
+                st.plotly_chart(fig, use_container_width=True)
 
         else:
-            st.error("❌ API error — check backend logs")
+            st.error("❌ API Error — check payload or backend logs")
+
+    except Exception as e:
+        st.error(f"🚨 Connection Error: {e}")
